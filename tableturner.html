@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TableTurner • Real-Time Wait Times</title>
+  <style>
+    :root{
+      --cream:#F6F2E9;
+      --brown:#8B6B4A;
+      --gold:#C9A86A;
+      --green:#1F3D2B;
+      --green-acc:#2E5B3C;
+      --muted:#6E7A6F;
+      --danger:#B84A4A;
+      --warning:#C9871F;
+      --ok:#2F8F64;
+      --card:#FFFFFF;
+      --shadow:0 6px 20px rgba(0,0,0,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background:linear-gradient(180deg,var(--cream),#fff 40%);
+      color:#20231F;
+    }
+    header{ position:sticky; top:0; z-index:10; background:rgba(255,255,255,.8); backdrop-filter: blur(8px); border-bottom:1px solid #eee; }
+    .container{max-width:1100px; margin:0 auto; padding: 1rem 1.25rem}
+    .hero{ display:grid; gap:1rem; align-items:center; grid-template-columns: 1.3fr .7fr; padding:1.25rem 0 0.5rem; }
+    .brand{ display:flex; align-items:center; gap:.75rem; }
+    .logo{ width:42px; height:42px; border-radius:10px; background: radial-gradient(circle at 30% 30%, var(--gold), #b9904a); box-shadow: var(--shadow); display:grid; place-items:center; color:#fff; font-weight:800; }
+    h1{ margin:0; font-size:clamp(1.25rem, 2vw + 1rem, 2rem); color:var(--green);} 
+    .tag{ color:var(--muted); font-weight:500 }
+    .card{ background:var(--card); border:1px solid #eee; border-radius:18px; box-shadow: var(--shadow); }
+    .hero-left{ padding:1.25rem; }
+    .metrics{ display:grid; grid-template-columns: repeat(3,1fr); gap:.75rem; margin-top:1rem; }
+    .metric{ padding:.85rem; border-radius:14px; border:1px dashed #e8e4db; background:#fff; }
+    .metric h3{ margin:.15rem 0; font-size:1.35rem; color:var(--green) }
+    .metric small{ color:var(--muted) }
+    .hero-right{ padding:1.25rem; display:grid; place-items:center }
+    .occ-wrap{ display:grid; place-items:center }
+    .occ-label{ margin-top:.35rem; font-weight:600; color:var(--green) }
+    svg.progress{ width:160px; height:160px; }
+    .progress text{ font-weight:800; fill:var(--green) }
+    .grid{ display:grid; gap:1rem; grid-template-columns: 1.2fr .8fr; margin:1rem 0 2rem; }
+    .section{ padding:1rem }
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ text-align:left; padding:.75rem; border-bottom:1px solid #eee }
+    thead th{ font-size:.9rem; letter-spacing:.02em; color:var(--muted) }
+    tbody tr:hover{ background:#faf9f6 }
+    .pill{ display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .6rem; border-radius:999px; font-size:.82rem; border:1px solid #eee; }
+    form{ display:grid; gap:.65rem; grid-template-columns: 1fr 1fr; }
+    form .full{ grid-column: 1/-1 }
+    label{ font-size:.9rem; color:var(--muted) }
+    input, select{ width:100%; padding:.65rem .7rem; border:1px solid #e7e2d8; border-radius:12px; outline:none; }
+    button{ appearance:none; border:0; background:var(--green); color:#fff; padding:.75rem 1rem; border-radius:12px; font-weight:700; cursor:pointer; transition: transform .05s ease; }
+    button:active{ transform: translateY(1px) }
+    .ghost{ background:#fff; color:var(--green); border:1px solid #e5e5e5 }
+    .toolbar{ display:flex; justify-content:space-between; align-items:center; margin:.25rem 0 1rem }
+    .toggle{ display:inline-grid; grid-auto-flow:column; gap:.35rem; align-items:center; }
+    .toggle input{ width:40px; height:22px; appearance:none; background:#e5e5e5; border-radius:999px; position:relative; outline:none; transition: background .2s ease }
+    .toggle input:checked{ background:var(--green-acc) }
+    .toggle input::after{ content:""; width:18px; height:18px; border-radius:50%; background:#fff; position:absolute; top:2px; left:2px; transition:left .2s ease }
+    .toggle input:checked::after{ left:20px }
+    .admin{ display:none }
+    .admin.active{ display:block }
+    .admin-grid{ display:grid; grid-template-columns: 1fr; gap:.75rem }
+    .admin-tile{ padding:.8rem; border-radius:14px; border:1px solid #eee; background:#fff; }
+    .admin-row{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; padding:.5rem 0; border-bottom:1px dashed #eee }
+    .admin-row:last-child{ border-bottom:0 }
+    .hint{ color:var(--muted); font-size:.9rem }
+    .status-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:.4rem }
+    @media (max-width: 960px){
+      .hero{ grid-template-columns: 1fr; }
+      .grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <div class="brand">
+        <div class="logo">TT</div>
+        <div>
+          <h1>TableTurner</h1>
+          <div class="tag">Skip the line — see your wait time in real time</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="card hero-left">
+        <div class="toolbar">
+          <div class="hint">Live status updates every minute</div>
+          <label class="toggle" title="Toggle staff view">
+            <span class="hint">Staff view</span>
+            <input type="checkbox" id="staffToggle"/>
+          </label>
+        </div>
+        <div class="metrics">
+          <div class="metric">
+            <small>Current Occupancy</small>
+            <h3 id="occupancyText">—</h3>
+            <small id="occupancySub" class="hint">—</small>
+          </div>
+          <div class="metric">
+            <small>Average Wait (All Parties)</small>
+            <h3 id="avgWait">—</h3>
+            <small class="hint">±5 min for variability</small>
+          </div>
+          <div class="metric">
+            <small>Next Table Ready</small>
+            <h3 id="nextReady">—</h3>
+            <small id="nextReadySub" class="hint">—</small>
+          </div>
+        </div>
+      </div>
+      <div class="card hero-right">
+        <div class="occ-wrap">
+          <svg class="progress" viewBox="0 0 120 120" aria-label="Occupancy meter">
+            <circle cx="60" cy="60" r="52" stroke="#eee" stroke-width="10" fill="none"/>
+            <circle id="occArc" cx="60" cy="60" r="52" stroke="#2E5B3C" stroke-linecap="round" stroke-width="10" fill="none" transform="rotate(-90 60 60)" stroke-dasharray="327" stroke-dashoffset="327" style="transition: stroke-dashoffset .6s ease"/>
+            <text x="60" y="60" text-anchor="middle" dominant-baseline="central" font-size="22" id="occPct">0%</text>
+          </svg>
+          <div class="occ-label" id="occLabel">Low occupancy</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card section">
+        <h2 style="margin:0 0 .5rem 0; color:var(--green)">Live Waitlist</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Guest</th>
+              <th>Party</th>
+              <th>Added</th>
+              <th>Estimated Wait</th>
+            </tr>
+          </thead>
+          <tbody id="waitlistRows"></tbody>
+        </table>
+        <div class="hint" style="margin-top:.5rem">Estimates adjust continuously based on live table turnover.</div>
+      </div>
+
+      <div class="card section">
+        <h2 style="margin:0 0 .5rem 0; color:var(--green)">Join the Waitlist</h2>
+        <form id="joinForm">
+          <div>
+            <label for="guestName">Name</label>
+            <input id="guestName" required placeholder="First & last"/>
+          </div>
+          <div>
+            <label for="guestContact">Phone or Email</label>
+            <input id="guestContact" required placeholder="(555) 555-1234 or you@domain.com"/>
+          </div>
+          <div>
+            <label for="partySize">Party Size</label>
+            <select id="partySize">
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <div class="full">
+            <button type="submit">Add to Waitlist</button>
+            <button type="button" id="simulateBtn" class="ghost" style="margin-left:.5rem">Simulate Turnover Now</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="card section admin" id="admin">
+      <div class="toolbar">
+        <h2 style="margin:0; color:var(--green)">Host Dashboard</h2>
+        <div class="hint">Manage tables & upcoming ready times</div>
+      </div>
+      <div class="admin-grid">
+        <div class="admin-tile">
+          <strong>Overview</strong>
+          <div id="adminOverview" class="hint" style="margin-top:.35rem">—</div>
+        </div>
+        <div class="admin-tile">
+          <strong>Tables</strong>
+          <div id="tablesList"></div>
+        </div>
+        <div class="admin-tile">
+          <strong>Upcoming Ready Times (next 45 min)</strong>
+          <div id="upcomingList" class="hint"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="toast" style="position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#1F3D2B; color:#fff; padding:.65rem .9rem; border-radius:10px; box-shadow:var(--shadow); opacity:0; transition:opacity .3s ease">—</div>
+  </main>
+
+  <script>
+    const MIN_MS = 60000;
+    const CLEANING_BUFFER_MIN = 4;
+
+    function rand(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+    function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+    function fmtTime(d){ return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}); }
+
+    const ICON = {
+      users: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',
+      table: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"></path><path d="M12 10v11"></path><path d="M6 10v11"></path><path d="M18 10v11"></path><rect x="3" y="4" width="18" height="6" rx="1"/></svg>',
+      clock: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+    };
+
+    const tables = Array.from({length: 30}, function(_,i){
+      var sizes = [2,2,2,4,4,4,4,6,6];
+      var size = sizes[i%9] || 4;
+      var avgTurn = (size<=2? 45 : size<=4? 60 : 75);
+      var seatedAgoMin = Math.random()<.75 ? rand(1, avgTurn-5) : null;
+      return {
+        table_id: i+1,
+        size: size,
+        avg_turn_time: avgTurn,
+        cleaning_buffer: CLEANING_BUFFER_MIN,
+        seated_at: seatedAgoMin? new Date(Date.now()-seatedAgoMin*MIN_MS) : null
+      };
+    });
+
+    var waitlist = [
+      {name:'Ava R.', contact:'ava@example.com', size:2, addedAt:new Date(Date.now()-rand(2,10)*MIN_MS)},
+      {name:'Chen L.', contact:'(212) 555-1800', size:4, addedAt:new Date(Date.now()-rand(3,15)*MIN_MS)},
+      {name:'Sanjay P.', contact:'sanjay@mail.com', size:3, addedAt:new Date(Date.now()-rand(1,6)*MIN_MS)}
+    ];
+
+    function remainingDiningMin(table){
+      if(!table.seated_at) return 0;
+      var elapsed = (Date.now() - new Date(table.seated_at).getTime())/MIN_MS;
+      return clamp(Math.ceil(table.avg_turn_time - elapsed), 0, 999);
+    }
+
+    function expectedFreeTime(table){
+      if(!table.seated_at) return new Date();
+      var end = new Date(new Date(table.seated_at).getTime() + table.avg_turn_time*MIN_MS);
+      return end;
+    }
+
+    function estimateWaitForParty(size){
+      var candidates = tables.filter(function(t){ return (!t.seated_at || t.size>=size); });
+      var soonest = candidates
+        .map(function(t){ return {t:t, freeAt: t.seated_at? expectedFreeTime(t) : new Date()}; })
+        .sort(function(a,b){ return a.freeAt - b.freeAt; })[0];
+      if(!soonest) return {min:5, max:10, freeAt:new Date()};
+      var baseMin = Math.max(0, Math.round((soonest.freeAt - Date.now())/MIN_MS));
+      var withClean = baseMin + ((soonest.t && soonest.t.cleaning_buffer) || CLEANING_BUFFER_MIN);
+      var jitter = 5;
+      return { min: Math.max(0, withClean - jitter), max: withClean + jitter, freeAt: soonest.freeAt };
+    }
+
+    function occupancyInfo(){
+      var total = tables.length;
+      var seated = tables.filter(function(t){ return t.seated_at; }).length;
+      var pct = Math.round((seated/total)*100);
+      var level = 'Low occupancy';
+      if(pct>=86){ level='High occupancy'; }
+      else if(pct>=61){ level='Moderate occupancy'; }
+      return {seated:seated,total:total,pct:pct,level:level};
+    }
+
+    function averageWaitAcrossQueue(){
+      if(waitlist.length===0) return 0;
+      var mins = waitlist.map(function(w){ var est=estimateWaitForParty(w.size); return Math.round((est.min+est.max)/2); });
+      var sum = mins.reduce(function(a,b){ return a+b; },0);
+      return Math.round(sum/mins.length);
+    }
+
+    function assignPartiesToTables(){
+      var now = Date.now();
+      var freeTables = tables.filter(function(t){
+        return (!t.seated_at || (expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS <= now));
+      });
+      freeTables.forEach(function(t){
+        var idx = waitlist.findIndex(function(w){ return w.size <= t.size; });
+        if(idx>-1){
+          var party = waitlist.splice(idx,1)[0];
+          t.seated_at = new Date();
+          toast("Seated " + party.name + " (party " + party.size + ") at Table " + t.table_id);
+        } else {
+          if(t.seated_at){
+            t.seated_at = null;
+          }
+        }
+      });
+    }
+
+    function simulateTurnover(){
+      var occupied = tables.filter(function(t){ return t.seated_at; });
+      var count = Math.min(rand(1,3), occupied.length);
+      var pick = occupied.sort(function(){ return Math.random()-.5; }).slice(0,count);
+      pick.forEach(function(t){
+        t.seated_at = new Date(Date.now() - (t.avg_turn_time+ rand(0,5))*MIN_MS);
+      });
+      assignPartiesToTables();
+      renderAll();
+    }
+
+    function renderHero(){
+      var occ = occupancyInfo();
+      var occText = document.getElementById('occupancyText');
+      var occSub = document.getElementById('occupancySub');
+      var occArc = document.getElementById('occArc');
+      var occPct = document.getElementById('occPct');
+      var occLabel = document.getElementById('occLabel');
+      var avgWaitEl = document.getElementById('avgWait');
+      var nextReadyEl = document.getElementById('nextReady');
+      var nextReadySub = document.getElementById('nextReadySub');
+
+      occText.textContent = occ.seated + " of " + occ.total + " tables seated";
+      occSub.textContent = occ.level;
+
+      var circumference = 2 * Math.PI * 52;
+      var offset = circumference * (1 - occ.pct/100);
+      occArc.style.strokeDashoffset = offset;
+      occPct.textContent = occ.pct + "%";
+      occLabel.textContent = occ.level;
+      var color = occ.pct>=86? 'var(--danger)': occ.pct>=61? 'var(--warning)': 'var(--ok)';
+      occPct.style.fill = color; occLabel.style.color = color;
+
+      var avg = averageWaitAcrossQueue();
+      avgWaitEl.textContent = avg>0 ? (avg + " min") : 'No wait';
+
+      var soonest = tables
+        .map(function(t){ return {id:t.table_id, freeAt: t.seated_at? expectedFreeTime(t): new Date(), size:t.size}; })
+        .sort(function(a,b){ return a.freeAt - b.freeAt; })[0];
+      if(soonest){
+        var eta = Math.max(0, Math.round((soonest.freeAt - Date.now())/MIN_MS) + CLEANING_BUFFER_MIN);
+        nextReadyEl.textContent = eta>0 ? (eta + " min") : 'Now';
+        nextReadySub.textContent = "Table " + soonest.id + " (~" + soonest.size + ") ready around " + fmtTime(soonest.freeAt);
+      }
+    }
+
+    function renderWaitlist(){
+      var tbody = document.getElementById('waitlistRows');
+      tbody.innerHTML = '';
+      waitlist.forEach(function(w){
+        var est = estimateWaitForParty(w.size);
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>'+w.name+'</td>' +
+          '<td><span class="pill">'+ICON.users+w.size+'</span></td>' +
+          '<td>'+fmtTime(w.addedAt)+'</td>' +
+          '<td><span class="pill">'+ICON.clock+est.min+'–'+est.max+' min</span></td>';
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAdmin(){
+      var overview = document.getElementById('adminOverview');
+      var list = document.getElementById('tablesList');
+      var upcoming = document.getElementById('upcomingList');
+
+      var occ = occupancyInfo();
+      overview.textContent = occ.seated + ' seated / ' + (occ.total-occ.seated) + ' available • ' + occ.pct + '% occupied';
+
+      list.innerHTML = '';
+      tables.forEach(function(t){
+        var row = document.createElement('div');
+        row.className = 'admin-row';
+        var status = t.seated_at ? 'Seated' : 'Available';
+        var dot = '<span class="status-dot" style="background:'+(t.seated_at? 'var(--warning)':'var(--ok)')+'"></span>';
+        var remain = t.seated_at ? (remainingDiningMin(t) + ' min left') : '—';
+        row.innerHTML = '<div>'+dot+'<strong>Table '+t.table_id+'</strong> • size '+t.size+' • '+status+' <span class="hint">('+remain+')</span></div>' +
+                        '<div><button class="ghost" data-action="seat" data-id="'+t.table_id+'">Seat</button> ' +
+                        '<button class="ghost" data-action="clear" data-id="'+t.table_id+'">Clear</button></div>';
+        list.appendChild(row);
+      });
+
+      var soon = tables
+        .filter(function(t){ return t.seated_at; })
+        .map(function(t){ return { id:t.table_id, size:t.size, at: new Date(expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS) }; })
+        .filter(function(x){ return x.at - Date.now() <= 45*MIN_MS; })
+        .sort(function(a,b){ return a.at - b.at; })
+        .slice(0,8);
+      upcoming.innerHTML = soon.length? soon.map(function(s){ return 'Table '+s.id+' (~'+s.size+') around '+fmtTime(s.at); }).join('<br/>') : 'No tables expected soon';
+
+      list.onclick = function(e){
+        var btn = e.target.closest('button');
+        if(!btn) return;
+        var id = +btn.dataset.id;
+        var t = tables.find(function(x){ return x.table_id===id; });
+        if(btn.dataset.action==='seat'){
+          if(!t.seated_at){ t.seated_at = new Date(); toast('Marked Table '+id+' as seated'); }
+        }
+        if(btn.dataset.action==='clear'){
+          t.seated_at = null; toast('Cleared Table '+id);
+        }
+        assignPartiesToTables();
+        renderAll();
+      };
+    }
+
+    function toast(msg){
+      var t = document.getElementById('toast');
+      t.textContent = msg; t.style.opacity = 1;
+      setTimeout(function(){ t.style.opacity = 0; }, 1600);
+    }
+
+    function renderAll(){ renderHero(); renderWaitlist(); renderAdmin(); }
+
+    document.getElementById('joinForm').addEventListener('submit', function(e){
+      e.preventDefault();
+      var name = document.getElementById('guestName').value.trim();
+      var contact = document.getElementById('guestContact').value.trim();
+      var size = +document.getElementById('partySize').value;
+      if(!name || !contact) return;
+      waitlist.push({ name:name, contact:contact, size:size, addedAt:new Date() });
+      toast('Added '+name+' (party '+size+') to waitlist');
+      e.target.reset();
+      renderAll();
+    });
+
+    document.getElementById('simulateBtn').addEventListener('click', simulateTurnover);
+
+    document.getElementById('staffToggle').addEventListener('change', function(e){
+      var on = e.target.checked;
+      document.getElementById('admin').classList.toggle('active', on);
+    });
+
+    function tick(){ assignPartiesToTables(); renderAll(); }
+    setInterval(tick, 15000);
+    setInterval(simulateTurnover, rand(60,120)*1000);
+
+    renderAll();
+  </script>
+</body>
+</html>
