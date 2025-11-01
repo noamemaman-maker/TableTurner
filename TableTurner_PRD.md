@@ -1,10 +1,10 @@
-# **TableTurner V2 — Product Requirements Document (PRD)**
+# **TableTurner — Product Requirements Document (PRD)**
 
 ---
 
 ## **1. Executive Summary (8 points)**
 
-**Product Name:** TableTurner V2  
+**Product Name:** TableTurner
 **Elevator Pitch:** TableTurner is an intelligent, real-time restaurant waitlist and seating management platform. It replaces manual guesswork with live data, showing guests precisely how long they’ll wait while helping staff manage seating and turnover more efficiently.  
 **Core Problem:** Restaurants lose time and revenue because hosts still rely on rough estimates for wait times. TableTurner solves this by predicting table readiness accurately, improving the guest experience and streamlining operations.
 
@@ -149,6 +149,6 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 ---
 
 **Summary:**  
-TableTurner V2 combines automation, data, and transparency to solve one of the hospitality industry’s most frustrating inefficiencies — the unpredictability of wait times. It transforms chaotic front-of-house management into a structured, data-driven process that increases revenue, customer satisfaction, and operational control.
+TableTurner combines automation, data, and transparency to solve one of the hospitality industry’s most frustrating inefficiencies — the unpredictability of wait times. It transforms chaotic front-of-house management into a structured, data-driven process that increases revenue, customer satisfaction, and operational control.
 
 ---
