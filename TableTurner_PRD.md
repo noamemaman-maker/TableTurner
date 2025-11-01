@@ -2,15 +2,17 @@
 
 ---
 
-## **1. Executive Summary (8 points)**
+## **1. Executive Summary**
 
 **Product Name:** TableTurner
+
 **Elevator Pitch:** TableTurner is an intelligent, real-time restaurant waitlist and seating management platform. It replaces manual guesswork with live data, showing guests precisely how long they’ll wait while helping staff manage seating and turnover more efficiently.  
+
 **Core Problem:** Restaurants lose time and revenue because hosts still rely on rough estimates for wait times. TableTurner solves this by predicting table readiness accurately, improving the guest experience and streamlining operations.
 
 ---
 
-## **2. Problem Statement & Opportunity (10 points)**
+## **2. Problem Statement & Opportunity**
 
 ### **The Problem**
 Most restaurants today rely on manual processes to manage seating. Hosts use intuition rather than data, leading to inaccurate wait times, miscommunication, and inefficient table use. Guests become frustrated, leave early, or leave negative reviews — all while staff struggle to maintain order.
@@ -30,7 +32,7 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 
 ---
 
-## **3. Target Users & User Personas (8 points)**
+## **3. Target Users & User Personas**
 
 ### **Primary Persona: The Restaurant Host**
 - **Profile:** A busy front-of-house worker responsible for managing walk-ins and reservations.  
@@ -49,7 +51,7 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 
 ---
 
-## **4. MVP Feature Specifications (12 points)**
+## **4. MVP Feature Specifications**
 
 ### **Feature 1: Real-Time Wait Estimation**
 - **User Story:** As a *guest*, I want to know exactly how long until my table is ready so I can plan accordingly.  
@@ -73,7 +75,7 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 
 ---
 
-## **5. Future Roadmap (7 points)**
+## **5. Future Roadmap**
 
 ### **Phase 1 (Weeks 1–2): Foundation**
 - Build MVP with live wait estimation, host dashboard, and cleaning buffer logic.  
@@ -96,7 +98,7 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 
 ---
 
-## **6. Goals & Success Metrics (5 points)**
+## **6. Goals & Success Metrics**
 
 | **Goal** | **Metric** | **Target** | **Timeline** |
 |-----------|-------------|-------------|---------------|
@@ -108,7 +110,7 @@ TableTurner can become the **standard digital infrastructure** for live seating 
 
 ---
 
-## **7. Open Questions (5 points)**
+## **7. Open Questions**
 
 1. **Pricing Model Optimization:**  
    Should TableTurner adopt a tiered subscription model (Basic for small venues, Pro for high-traffic chains) or usage-based pricing tied to table turnover volume?  
