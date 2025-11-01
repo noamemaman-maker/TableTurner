@@ -2,7 +2,7 @@
 
 ### Real-Time Restaurant Waitlist & Table Management Platform
 
-TableTurner V2 is a web-based platform that transforms how restaurants manage their front-of-house operations.  
+TableTurner is a web-based platform that transforms how restaurants manage their front-of-house operations.  
 It replaces manual guesswork with real-time data to calculate precise wait times, improve table turnover, and give both guests and staff a transparent, organized view of the dining flow.
 
 Whether it’s a small café or a high-volume dining chain, TableTurner empowers restaurant teams to make smarter seating decisions, reduce guest frustration, and increase overall revenue per shift.
