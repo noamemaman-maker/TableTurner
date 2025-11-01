@@ -281,6 +281,77 @@
       const end = new Date(new Date(table.seated_at).getTime() + table.avg_turn_time*MIN_MS);
       return end;
     }
+    // Earliest moment a table is truly free (dining + cleaning)
+    function tableFreeAt(t){
+      return t.seated_at
+        ? new Date(expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS)
+        : new Date();
+    }
+
+    // Queue-aware ETAs for the current waitlist (FCFS per table size)
+    function computeQueueETAs(){
+      const now = Date.now();
+
+      // Build availability pools by table size (2,4,6)
+      const pools = {};
+      tables.forEach(t => {
+        const s = t.size;
+        if(!pools[s]) pools[s] = [];
+        pools[s].push({
+          table_id: t.table_id,
+          freeAt: tableFreeAt(t),
+          cycleMin: t.avg_turn_time + t.cleaning_buffer // how long this table stays busy after it seats the next party
+        });
+      });
+
+      // For stability, sort each pool by soonest free first
+      Object.values(pools).forEach(arr => arr.sort((a,b)=> a.freeAt - b.freeAt));
+
+      // We assign ETAs in waitlist order (FIFO)
+      const etas = [];
+      waitlist
+        .slice() // do not mutate
+        .sort((a,b)=> a.addedAt - b.addedAt)
+        .forEach(w => {
+          const bucket = targetTableSize(w.size);
+          const pool = pools[bucket] || [];
+
+          if(pool.length === 0){
+            etas.push({ minutes: 0, freeAt: new Date(now), tableSize: bucket });
+            return;
+          }
+
+          // Choose the table that is free the earliest for this size
+          let idx = 0;
+          for (let i=1; i<pool.length; i++){
+            if (pool[i].freeAt < pool[idx].freeAt) idx = i;
+          }
+          const chosen = pool[idx];
+
+          // This guest's ETA
+          const freeAt = chosen.freeAt;
+          const minutes = Math.max(0, Math.round((freeAt.getTime() - now)/MIN_MS));
+          etas.push({ minutes, freeAt, tableSize: bucket });
+
+          // Update that table's next availability after seating this guest
+          chosen.freeAt = new Date(chosen.freeAt.getTime() + chosen.cycleMin*MIN_MS);
+          // Keep pool roughly ordered
+          // (Insertion sort-style single step; fine for small arrays)
+          while (idx+1 < pool.length && pool[idx].freeAt > pool[idx+1].freeAt){
+            [pool[idx], pool[idx+1]] = [pool[idx+1], pool[idx]];
+            idx++;
+          }
+        });
+
+      // Map back to original waitlist order (same index alignment)
+      // We sorted to compute FCFS, but the UI loops in original order.
+      // Build a quick index by name+addedAt to realign safely.
+      const key = (w)=> `${w.name}|${new Date(w.addedAt).getTime()}`;
+      const sortedWL = waitlist.slice().sort((a,b)=> a.addedAt - b.addedAt);
+      const map = new Map(sortedWL.map((w,i)=> [key(w), etas[i]]));
+
+      return waitlist.map(w => map.get(key(w)));
+    }
     function estimateWaitForParty(size){
       const target = targetTableSize(size);
       const now = Date.now();
