@@ -288,15 +288,19 @@
       if (candidates.length === 0){
         return { minutes: 0, freeAt: new Date(now), tableSize: target };
       }
+      // compute free time INCLUDING cleaning buffer per table
       const withTimes = candidates.map(t => {
-        if (!t.seated_at){ return { t, freeAt: new Date(now) }; }
-        const diningEnds = expectedFreeTime(t).getTime();
-        const freeAtMs = diningEnds + t.cleaning_buffer*MIN_MS;
-        return { t, freeAt: new Date(freeAtMs) };
-      });
-      const soonest = withTimes.sort((a,b)=> a.freeAt - b.freeAt)[0];
-      const minutes = Math.max(0, Math.round((soonest.freeAt.getTime() - now)/MIN_MS));
-      return { minutes, freeAt: soonest.freeAt, tableSize: target };
+        if (!t.seated_at){ 
+        return { t, freeAt: new Date(now) }; 
+    }
+      const diningEnds = expectedFreeTime(t).getTime();
+      const freeAtMs = diningEnds + t.cleaning_buffer * MIN_MS;
+      return { t, freeAt: new Date(freeAtMs) };
+  });
+
+  const soonest = withTimes.sort((a,b)=> a.freeAt - b.freeAt)[0];
+  const minutes = Math.max(0, Math.round((soonest.freeAt.getTime() - now)/MIN_MS));
+  return { minutes, freeAt: soonest.freeAt, tableSize: target };
     }
 
     // ------------------------------
@@ -321,28 +325,29 @@
     // Auto-assign: EXACT size only
     // ------------------------------
     function assignPartiesToTables(){
-      const now = Date.now();
-      const freeTables = tables.filter(t =>
-        !t.seated_at || expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS <= now
-      );
+  const now = Date.now();
 
-      freeTables.forEach(t => {
-        const idx = waitlist.findIndex(w => targetTableSize(w.size) === t.size);
-        if (idx > -1){
-          const party = waitlist.splice(idx,1)[0];
-          if (seatPartyAtTable(party, t, /*allowFlex*/ false)) {
-            toast(`Seated ${party.name} (party ${party.size}) at Table ${t.table_id}`);
-          }
-        } else {
-          // mark truly free (if it just finished)
-          if (t.seated_at && expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS <= now){
-            t.seated_at = null;
-            t.seated_party = null;
-          }
-        }
-      });
+  tables.forEach(t => {
+    const doneAndBuffered = t.seated_at && (expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS <= now);
+
+    // If a table finished + buffer passed, clear it first
+    if (doneAndBuffered){
+      t.seated_at = null;
+      t.seated_party = null;
     }
 
+    // If table is free now, auto-seat the first exact-fit party
+    if (!t.seated_at){
+      const idx = waitlist.findIndex(w => targetTableSize(w.size) === t.size);
+      if (idx > -1){
+        const party = waitlist.splice(idx,1)[0];
+        if (seatPartyAtTable(party, t, /*allowFlex*/ false)) {
+          toast(`Seated ${party.name} (party ${party.size}) at Table ${t.table_id}`);
+        }
+      }
+    }
+  });
+}
     // Simulate turnover occasionally (for demo only)
     function simulateTurnover(){
       const occupied = tables.filter(t=>t.seated_at);
@@ -389,13 +394,19 @@
       avgWaitEl.textContent = avg>0 ? `${avg} min` : 'Now';
 
       const soonest = tables
-        .map(t=>({id:t.table_id, freeAt: t.seated_at? expectedFreeTime(t): new Date(), size:t.size}))
-        .sort((a,b)=> a.freeAt - b.freeAt)[0];
-      if(soonest){
-        const eta = Math.max(0, Math.round((soonest.freeAt - Date.now())/MIN_MS) + CLEANING_BUFFER_MIN);
-        nextReadyEl.textContent = eta>0 ? `${eta} min` : 'Now';
-        nextReadySub.textContent = `Table ${soonest.id} (~${soonest.size}) ready around ${fmtTime(soonest.freeAt)}`;
-      }
+      .map(t=>{
+        const freeAt = t.seated_at 
+          ? new Date(expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS)
+          : new Date();
+        return { id:t.table_id, size:t.size, freeAt };
+      })
+      .sort((a,b)=> a.freeAt - b.freeAt)[0];
+
+    if(soonest){
+      const eta = Math.max(0, Math.round((soonest.freeAt.getTime() - Date.now())/MIN_MS));
+      nextReadyEl.textContent = eta>0 ? `${eta} min` : 'Now';
+      nextReadySub.textContent = `Table ${soonest.id} (~${soonest.size}) around ${fmtTime(soonest.freeAt)}`;
+    }
     }
 
     function renderWaitlist(){
@@ -441,15 +452,28 @@
         }
 
         if (btn.dataset.act === 'seat') {
-          const allowFlex = e.altKey || e.shiftKey; // hold Alt/Option or Shift to override
-          const candidates = tables.filter(t =>
-            (!t.seated_at || expectedFreeTime(t) <= new Date()) &&
-            canSeat(w.size, t.size, allowFlex)
-          );
+          const allowFlex = e.altKey || e.shiftKey;
+          const now = Date.now();
+
+          const candidates = tables.filter(t => {
+            const freeAfter = t.seated_at 
+              ? (expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS)
+              : now;
+            return freeAfter <= now && canSeat(w.size, t.size, allowFlex);
+          });
+
           if (candidates.length === 0){
-            toast('No table available yet for party ' + w.size); return;
+            toast('No table available yet for party ' + w.size); 
+            return;
           }
-          const t = candidates.sort((a,b)=> (expectedFreeTime(a) - expectedFreeTime(b)))[0];
+
+          // pick the earliest that is truly free (post-buffer)
+          const t = candidates.sort((a,b)=>{
+            const af = (a.seated_at ? expectedFreeTime(a).getTime() + a.cleaning_buffer*MIN_MS : now);
+            const bf = (b.seated_at ? expectedFreeTime(b).getTime() + b.cleaning_buffer*MIN_MS : now);
+            return af - bf;
+          })[0];
+
           if (!seatPartyAtTable(w, t, allowFlex)) return;
           waitlist.splice(i,1);
           toast(`Seated ${w.name} (party ${w.size}) at Table ${t.table_id}${allowFlex ? ' (override)' : ''}`);
@@ -541,6 +565,7 @@
       const size = +document.getElementById('partySize').value;
       if(!name || !contact) return;
       waitlist.push({ name, contact, size, addedAt:new Date() });
+      assignPartiesToTables();
       toast(`Added ${name} (party ${size}) to waitlist`);
       e.target.reset();
       renderAll();
@@ -555,6 +580,7 @@
     setInterval(simulateTurnover, rand(60,120)*1000); // simulate some turnover
 
     // Initial render
+    assignPartiesToTables();
     renderAll();
 
     // ------------------------------
