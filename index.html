@@ -269,26 +269,28 @@
     }
 
     // ------------------------------
-    // Core timing
+    // Core timing (clean version)
     // ------------------------------
     function remainingDiningMin(table){
-      if(!table.seated_at) return 0;
-      const elapsed = (Date.now() - new Date(table.seated_at).getTime())/MIN_MS;
-      return clamp(Math.ceil(table.avg_turn_time - elapsed), 0, 999);
+      if (!table.seated_at) return 0;
+      const elapsedMin = (Date.now() - new Date(table.seated_at).getTime()) / MIN_MS;
+      return clamp(Math.ceil(table.avg_turn_time - elapsedMin), 0, 999);
     }
+
     function expectedFreeTime(table){
-      if(!table.seated_at) return new Date();
-      const end = new Date(new Date(table.seated_at).getTime() + table.avg_turn_time*MIN_MS);
-      return end;
+      if (!table.seated_at) return new Date();
+      const startMs = new Date(table.seated_at).getTime();
+      return new Date(startMs + table.avg_turn_time * MIN_MS);
     }
-    // Earliest moment a table is truly free (dining + cleaning)
+
+    // True free time = dining end + cleaning buffer (or now if empty)
     function tableFreeAt(t){
       return t.seated_at
-        ? new Date(expectedFreeTime(t).getTime() + t.cleaning_buffer*MIN_MS)
+        ? new Date(expectedFreeTime(t).getTime() + t.cleaning_buffer * MIN_MS)
         : new Date();
     }
 
-    // Queue-aware ETAs for the current waitlist (FCFS per table size)
+    // Queue-aware ETAs returned in the SAME ORDER as `waitlist`
     function computeQueueETAs(){
       const now = Date.now();
 
@@ -296,62 +298,48 @@
       const pools = {};
       tables.forEach(t => {
         const s = t.size;
-        if(!pools[s]) pools[s] = [];
-        pools[s].push({
-          table_id: t.table_id,
+        (pools[s] ||= []).push({
           freeAt: tableFreeAt(t),
-          cycleMin: t.avg_turn_time + t.cleaning_buffer // how long this table stays busy after it seats the next party
+          cycleMs: (t.avg_turn_time + t.cleaning_buffer) * MIN_MS
         });
       });
-
-      // For stability, sort each pool by soonest free first
       Object.values(pools).forEach(arr => arr.sort((a,b)=> a.freeAt - b.freeAt));
 
-      // We assign ETAs in waitlist order (FIFO)
-      const etas = [];
-      waitlist
-        .slice() // do not mutate
-        .sort((a,b)=> a.addedAt - b.addedAt)
-        .forEach(w => {
-          const bucket = targetTableSize(w.size);
-          const pool = pools[bucket] || [];
+      // Walk the waitlist FIFO by addedAt, store ETA by original index
+      const order = waitlist.map((_, i) => i)
+        .sort((i, j) => new Date(waitlist[i].addedAt) - new Date(waitlist[j].addedAt));
 
-          if(pool.length === 0){
-            etas.push({ minutes: 0, freeAt: new Date(now), tableSize: bucket });
-            return;
-          }
+      const etaByIdx = Array(waitlist.length);
 
-          // Choose the table that is free the earliest for this size
-          let idx = 0;
-          for (let i=1; i<pool.length; i++){
-            if (pool[i].freeAt < pool[idx].freeAt) idx = i;
-          }
-          const chosen = pool[idx];
+      order.forEach(idx => {
+        const w = waitlist[idx];
+        const bucket = targetTableSize(w.size);
+        const pool = pools[bucket];
 
-          // This guest's ETA
-          const freeAt = chosen.freeAt;
-          const minutes = Math.max(0, Math.round((freeAt.getTime() - now)/MIN_MS));
-          etas.push({ minutes, freeAt, tableSize: bucket });
+        if (!pool || pool.length === 0){
+          etaByIdx[idx] = { minutes: 0, freeAt: new Date(now), tableSize: bucket };
+          return;
+        }
 
-          // Update that table's next availability after seating this guest
-          chosen.freeAt = new Date(chosen.freeAt.getTime() + chosen.cycleMin*MIN_MS);
-          // Keep pool roughly ordered
-          // (Insertion sort-style single step; fine for small arrays)
-          while (idx+1 < pool.length && pool[idx].freeAt > pool[idx+1].freeAt){
-            [pool[idx], pool[idx+1]] = [pool[idx+1], pool[idx]];
-            idx++;
-          }
-        });
+        // pick earliest-free table for this size
+        let k = 0;
+        for (let i = 1; i < pool.length; i++){
+          if (pool[i].freeAt < pool[k].freeAt) k = i;
+        }
+        const chosen = pool[k];
 
-      // Map back to original waitlist order (same index alignment)
-      // We sorted to compute FCFS, but the UI loops in original order.
-      // Build a quick index by name+addedAt to realign safely.
-      const key = (w)=> `${w.name}|${new Date(w.addedAt).getTime()}`;
-      const sortedWL = waitlist.slice().sort((a,b)=> a.addedAt - b.addedAt);
-      const map = new Map(sortedWL.map((w,i)=> [key(w), etas[i]]));
+        const freeAt = chosen.freeAt;
+        const minutes = Math.max(0, Math.round((freeAt.getTime() - now) / MIN_MS));
+        etaByIdx[idx] = { minutes, freeAt, tableSize: bucket };
 
-      return waitlist.map(w => map.get(key(w)));
+        // advance that table's timeline for the NEXT person
+        chosen.freeAt = new Date(chosen.freeAt.getTime() + chosen.cycleMs);
+      });
+
+      return etaByIdx;
     }
+
+    // Legacy single-party estimator (independent, not queue-aware)
     function estimateWaitForParty(size){
       const target = targetTableSize(size);
       const now = Date.now();
@@ -359,19 +347,15 @@
       if (candidates.length === 0){
         return { minutes: 0, freeAt: new Date(now), tableSize: target };
       }
-      // compute free time INCLUDING cleaning buffer per table
       const withTimes = candidates.map(t => {
-        if (!t.seated_at){ 
-        return { t, freeAt: new Date(now) }; 
-    }
-      const diningEnds = expectedFreeTime(t).getTime();
-      const freeAtMs = diningEnds + t.cleaning_buffer * MIN_MS;
-      return { t, freeAt: new Date(freeAtMs) };
-  });
-
-  const soonest = withTimes.sort((a,b)=> a.freeAt - b.freeAt)[0];
-  const minutes = Math.max(0, Math.round((soonest.freeAt.getTime() - now)/MIN_MS));
-  return { minutes, freeAt: soonest.freeAt, tableSize: target };
+        if (!t.seated_at) return { t, freeAt: new Date(now) };
+        const diningEnds = expectedFreeTime(t).getTime();
+        const freeAtMs = diningEnds + t.cleaning_buffer * MIN_MS;
+        return { t, freeAt: new Date(freeAtMs) };
+      });
+      const soonest = withTimes.sort((a,b)=> a.freeAt - b.freeAt)[0];
+      const minutes = Math.max(0, Math.round((soonest.freeAt.getTime() - now) / MIN_MS));
+      return { minutes, freeAt: soonest.freeAt, tableSize: target };
     }
 
     // ------------------------------
