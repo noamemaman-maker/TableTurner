@@ -19,7 +19,7 @@ Whether it’s a small café or a high-volume dining chain, TableTurner empowers
 
 ## 📄 Product Requirements Document (PRD)
 The PRD outlines TableTurner’s business rationale, goals, and feature roadmap.  
-You can read it here: [TableTurner_PRD.md](./TableTurner_PRD.md)
+You can read it here: [docs/TableTurner_PRD.md](docs/TableTurner_PRD.md)
 
 ---
 
