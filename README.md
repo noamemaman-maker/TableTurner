@@ -19,7 +19,7 @@ Whether it’s a small café or a high-volume dining chain, TableTurner empowers
 
 ## 📄 Product Requirements Document (PRD)
 The PRD outlines TableTurner’s business rationale, goals, and feature roadmap.  
-You can read it here: [docs/TableTurner_PRD.md](docs/TableTurner_PRD.md)
+You can read it here: [TableTurner_PRD-v001.md](Docs/TableTurner_PRD-v001.md)
 
 ---
 
@@ -111,7 +111,7 @@ Our vision is to make restaurant operations feel as seamless as online ordering 
 ## 🧾 Quick Links
 
 - **Live Website:** [https://table-turner.vercel.app/](https://table-turner.vercel.app)  
-- **Product Requirements Document:** [TableTurner_PRD.md](./TableTurner_PRD.md)  
+- **Product Requirements Document:** [TableTurner_PRD-v001.md](Docs/TableTurner_PRD-v001.md)
 - **GitHub Repository:** [https://github.com/noamemaman-maker/TableTurner](https://github.com/noamemaman-maker/TableTurner)
 
 ---
